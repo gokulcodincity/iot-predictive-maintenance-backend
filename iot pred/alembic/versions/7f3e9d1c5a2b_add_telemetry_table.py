@@ -1,7 +1,7 @@
 """add telemetry table
 
 Revision ID: 7f3e9d1c5a2b
-Revises: 65fbd450774e
+Revises: 8c4d2e1f3b5a
 Create Date: 2026-07-28 14:30:00.000000
 
 """
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = '7f3e9d1c5a2b'
-down_revision = '65fbd450774e'
+down_revision = '8c4d2e1f3b5a'
 branch_labels = None
 depends_on = None
 
