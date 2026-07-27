@@ -1,0 +1,13 @@
+# Development dependencies
+# -r requirements.txt
+# pytest
+# pytest-cov
+# pytest-asyncio
+# httpx
+# black
+# isort
+# flake8
+# mypy
+# factory-boy
+# faker
+# pytest-mock

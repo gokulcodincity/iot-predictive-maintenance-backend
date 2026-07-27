@@ -1,0 +1,2 @@
+# TODO: Local development Docker Compose stack
+# Services: app, PostgreSQL, Redis, MQTT Broker
