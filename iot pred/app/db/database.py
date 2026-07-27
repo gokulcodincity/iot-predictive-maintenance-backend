@@ -1,6 +1,6 @@
 """Database configuration and SQLAlchemy setup."""
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
 
 from app.core.config import settings
@@ -28,7 +28,7 @@ def test_connection():
     """Test database connection."""
     try:
         with engine.connect() as connection:
-            connection.execute("SELECT 1")
+            connection.execute(text("SELECT 1"))
         print("Database connected successfully.")
     except Exception as e:
         print(e)
