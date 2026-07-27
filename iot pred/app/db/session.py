@@ -1,2 +1,14 @@
-# TODO: Database session management
-# Functions: get_session, create_session, close_session, session_context_manager
+"""Database session management."""
+
+from typing import Generator
+
+from app.db.database import SessionLocal
+
+
+def get_db() -> Generator:
+    """Get a database session for dependency injection."""
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
