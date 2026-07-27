@@ -1,82 +1,39 @@
-# Main FastAPI application initialization and configuration
-
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.middleware.trustedhost import TrustedHostMiddleware
-import logging
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
-
-# Create FastAPI application
 app = FastAPI(
-    title="IoT Predictive Maintenance API",
-    description="Enterprise Industrial IoT Predictive Maintenance Backend",
-    version="1.0.0"
+    title="Enterprise IoT Predictive Maintenance Backend",
+    version="1.0.0",
+    description="Industrial IoT platform for predictive maintenance with AI predictions"
 )
 
-# Configure CORS - allow requests from frontend
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # Will be restricted in production
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# API Tags for future routers
+tags_metadata = [
+    {"name": "Authentication", "description": "User login, registration, token management"},
+    {"name": "Assets", "description": "Industrial asset management"},
+    {"name": "Telemetry", "description": "Sensor telemetry data ingestion and retrieval"},
+    {"name": "Prediction", "description": "AI-based predictions for equipment health"},
+    {"name": "Alert", "description": "Alert management and notifications"},
+    {"name": "Maintenance", "description": "Maintenance records and scheduling"},
+    {"name": "Dashboard", "description": "Dashboard data aggregation"},
+]
 
-# Security middleware - only allow trusted hosts
-app.add_middleware(
-    TrustedHostMiddleware,
-    allowed_hosts=["localhost", "127.0.0.1"]
-)
+app.openapi_tags = tags_metadata
 
 
-# Health check endpoint
-@app.get("/health")
-async def health_check():
-    """Check if API is running and healthy"""
+@app.get("/", tags=["Health"])
+async def root():
     return {
-        "status": "healthy",
-        "service": "IoT Predictive Maintenance Backend"
+        "message": "Enterprise IoT Predictive Maintenance Backend is running",
+        "status": "success",
+        "version": "1.0.0"
     }
 
 
-# Root endpoint
-@app.get("/")
-async def root():
-    """Welcome message"""
-    return {"message": "Welcome to IoT Predictive Maintenance API"}
-
-
-# Startup event
-@app.on_event("startup")
-async def startup():
-    """Run when application starts"""
-    logger.info("Application starting up...")
-    # Database connection will be initialized here later
-    # MQTT client will be started here later
-    # WebSocket manager will be initialized here later
-
-
-# Shutdown event
-@app.on_event("shutdown")
-async def shutdown():
-    """Run when application shuts down"""
-    logger.info("Application shutting down...")
-    # Close database connections here later
-    # Disconnect MQTT client here later
-    # Close WebSocket connections here later
+@app.get("/health", tags=["Health"])
+async def health_check():
+    return {"status": "healthy"}
 
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(
-        "app.main:app",
-        host="0.0.0.0",
-        port=8000,
-        reload=True  # Auto-reload during development
-    )
+    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)
