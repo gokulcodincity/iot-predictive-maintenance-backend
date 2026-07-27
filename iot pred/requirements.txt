@@ -1,12 +1,20 @@
-# Production dependencies
-# fastapi
-# uvicorn
-# sqlalchemy
-# psycopg2-binary
-# alembic
-# pydantic
-# python-jose
-# passlib
-# paho-mqtt
-# python-dotenv
-# python-multipart
+# Production dependencies for Enterprise IoT Predictive Maintenance Backend
+
+# Web Framework
+fastapi==0.136.1
+uvicorn==0.47.0
+
+# Database
+SQLAlchemy==2.0.50
+psycopg2-binary==2.9.12
+alembic==1.18.5
+
+# Configuration and Validation
+pydantic==2.13.4
+pydantic-settings==2.14.2
+
+# Authentication and Security
+python-jose==3.5.0
+passlib==1.7.4
+bcrypt==5.0.0
+cryptography==49.0.0
