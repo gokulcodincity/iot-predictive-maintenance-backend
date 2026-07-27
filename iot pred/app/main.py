@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 
 from app.api.v1.auth import router as auth_router
+from app.api.v1.assets import router as assets_router
 
 app = FastAPI(
     title="Enterprise IoT Predictive Maintenance Backend",
@@ -23,6 +24,7 @@ app.openapi_tags = tags_metadata
 
 # Register routers
 app.include_router(auth_router)
+app.include_router(assets_router)
 
 
 @app.get("/", tags=["Health"])
