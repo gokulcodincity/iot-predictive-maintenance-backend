@@ -3,7 +3,7 @@
 from datetime import datetime
 
 from sqlalchemy import DateTime, Integer
-from sqlalchemy.orm import mapped_column
+from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.database import Base
 
@@ -13,8 +13,8 @@ class BaseModel(Base):
 
     __abstract__ = True
 
-    id: int = mapped_column(Integer, primary_key=True, index=True)
-    created_at: datetime = mapped_column(DateTime, default=datetime.utcnow)
-    updated_at: datetime = mapped_column(
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
     )
