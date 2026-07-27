@@ -1,6 +1,6 @@
 """Asset schemas for request and response validation."""
 
-from datetime import date
+from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict
 
@@ -47,5 +47,5 @@ class AssetResponse(BaseModel):
     manufacturer: str | None
     model_number: str | None
     installation_date: date | None
-    created_at: str
-    updated_at: str
+    created_at: datetime
+    updated_at: datetime
