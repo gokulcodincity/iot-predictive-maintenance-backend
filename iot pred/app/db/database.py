@@ -22,3 +22,13 @@ SessionLocal = sessionmaker(
     autoflush=False,
     autocommit=False
 )
+
+
+def test_connection():
+    """Test database connection."""
+    try:
+        with engine.connect() as connection:
+            connection.execute("SELECT 1")
+        print("Database connected successfully.")
+    except Exception as e:
+        print(e)
