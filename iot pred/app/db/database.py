@@ -11,10 +11,17 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
     create_async_engine,
 )
+from sqlalchemy.orm import DeclarativeBase
 
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
+
+
+class Base(DeclarativeBase):
+    """Base class for all SQLAlchemy ORM models."""
+
+    pass
 
 
 class DatabaseManager:
