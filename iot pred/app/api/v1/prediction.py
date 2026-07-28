@@ -1,11 +1,14 @@
-"""Prediction API endpoints."""
+"""Prediction API endpoints with role-based access control."""
 
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.authorization import Permission
 from app.db.database import get_async_session
+from app.dependencies.authorization import require_permission
+from app.models.user import User
 from app.repositories.prediction_repository import PredictionRepository
 from app.schemas.prediction import PredictionResponse
 
@@ -16,15 +19,20 @@ router = APIRouter(prefix="/prediction", tags=["Prediction"])
 
 @router.get("/latest/{machine_id}", response_model=PredictionResponse)
 async def get_latest_prediction(
-    machine_id: int, db: AsyncSession = Depends(get_async_session)
+    machine_id: int,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_permission(Permission.VIEW_PREDICTIONS)),
 ):
     """Get the latest prediction for a machine.
+
+    Requires: VIEW_PREDICTIONS permission
 
     Args:
         machine_id: Machine identifier
 
     Returns:
         HTTP 200 with latest prediction record
+        HTTP 403 if unauthorized
         HTTP 404 if no prediction found for machine
     """
     try:
@@ -56,8 +64,11 @@ async def get_prediction_history(
     machine_id: int,
     limit: int = Query(100, ge=1, le=10000),
     db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_permission(Permission.VIEW_PREDICTIONS)),
 ):
     """Get prediction history for a machine (newest first).
+
+    Requires: VIEW_PREDICTIONS permission
 
     Args:
         machine_id: Machine identifier
@@ -65,6 +76,7 @@ async def get_prediction_history(
 
     Returns:
         HTTP 200 with list of prediction records
+        HTTP 403 if unauthorized
     """
     try:
         repo = PredictionRepository(db)
@@ -83,15 +95,20 @@ async def get_prediction_history(
 
 @router.get("/count/{machine_id}", response_model=dict)
 async def get_prediction_count(
-    machine_id: int, db: AsyncSession = Depends(get_async_session)
+    machine_id: int,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_permission(Permission.VIEW_PREDICTIONS)),
 ):
     """Get total prediction count for a machine.
+
+    Requires: VIEW_PREDICTIONS permission
 
     Args:
         machine_id: Machine identifier
 
     Returns:
         HTTP 200 with count dictionary
+        HTTP 403 if unauthorized
     """
     try:
         repo = PredictionRepository(db)
@@ -114,8 +131,11 @@ async def get_prediction_range(
     start_time: str = Query(..., description="Start timestamp (ISO format)"),
     end_time: str = Query(..., description="End timestamp (ISO format)"),
     db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_permission(Permission.VIEW_PREDICTIONS)),
 ):
     """Get predictions within a time range for a machine.
+
+    Requires: VIEW_PREDICTIONS permission
 
     Args:
         machine_id: Machine identifier
@@ -124,6 +144,8 @@ async def get_prediction_range(
 
     Returns:
         HTTP 200 with list of predictions within time range
+        HTTP 400 if timestamp format is invalid
+        HTTP 403 if unauthorized
     """
     try:
         repo = PredictionRepository(db)
