@@ -41,3 +41,11 @@ class MaintenanceStatus(str, Enum):
     IN_PROGRESS = "in_progress"
     COMPLETED = "completed"
     CANCELLED = "cancelled"
+
+
+class ApprovalStatus(str, Enum):
+    """Approval workflow status values."""
+    PENDING = "pending"
+    UNDER_REVIEW = "under_review"
+    APPROVED = "approved"
+    REJECTED = "rejected"
