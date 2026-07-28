@@ -69,8 +69,6 @@ ROLE_PERMISSIONS: dict[Role, Set[Permission]] = {
         # Maintenance
         Permission.CREATE_MAINTENANCE,
         Permission.UPDATE_MAINTENANCE,
-        Permission.REVIEW_MAINTENANCE,
-        Permission.APPROVE_MAINTENANCE,
         # Trends and Validation
         Permission.VIEW_TRENDS,
         Permission.VALIDATE_AI_RESULTS,
