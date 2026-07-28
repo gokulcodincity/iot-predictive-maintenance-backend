@@ -1,11 +1,14 @@
-"""Dashboard API endpoints."""
+"""Dashboard API endpoints with role-based access control."""
 
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.authorization import Permission
 from app.db.database import get_async_session
+from app.dependencies.authorization import require_permission
+from app.models.user import User
 from app.services.dashboard_service import DashboardService
 
 logger = logging.getLogger(__name__)
@@ -15,9 +18,13 @@ router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 
 @router.get("/{machine_id}")
 async def get_dashboard(
-    machine_id: int, db: AsyncSession = Depends(get_async_session)
+    machine_id: int,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_permission(Permission.VIEW_DASHBOARD)),
 ):
     """Get comprehensive dashboard overview for a machine.
+
+    Requires: VIEW_DASHBOARD permission
 
     Aggregates latest telemetry, prediction, alert data and record counts.
     Provides real-time snapshot of machine health status.
@@ -34,6 +41,7 @@ async def get_dashboard(
             - telemetry_count: Total sensor readings for machine
             - prediction_count: Total predictions for machine
             - alert_count: Total alerts for machine
+        HTTP 403 if unauthorized
 
     Raises:
         HTTP 500: If dashboard data aggregation fails
