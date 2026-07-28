@@ -1,11 +1,14 @@
-"""Alert API endpoints."""
+"""Alert API endpoints with role-based access control."""
 
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.authorization import Permission
 from app.db.database import get_async_session
+from app.dependencies.authorization import require_permission
+from app.models.user import User
 from app.repositories.alert_repository import AlertRepository
 from app.schemas.alert_schemas import AlertResponse, AlertUpdate
 
@@ -16,15 +19,20 @@ router = APIRouter(prefix="/alert", tags=["Alert"])
 
 @router.get("/latest/{machine_id}", response_model=AlertResponse)
 async def get_latest_alert(
-    machine_id: int, db: AsyncSession = Depends(get_async_session)
+    machine_id: int,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_permission(Permission.VIEW_ALERTS)),
 ):
     """Get the latest alert for a machine.
+
+    Requires: VIEW_ALERTS permission
 
     Args:
         machine_id: Machine identifier
 
     Returns:
         HTTP 200 with latest alert record
+        HTTP 403 if unauthorized
         HTTP 404 if no alert found for machine
     """
     try:
@@ -56,8 +64,11 @@ async def get_alert_history(
     machine_id: int,
     limit: int = Query(100, ge=1, le=10000),
     db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_permission(Permission.VIEW_ALERTS)),
 ):
     """Get alert history for a machine (newest first).
+
+    Requires: VIEW_ALERTS permission
 
     Args:
         machine_id: Machine identifier
@@ -65,6 +76,7 @@ async def get_alert_history(
 
     Returns:
         HTTP 200 with list of alert records
+        HTTP 403 if unauthorized
     """
     try:
         repo = AlertRepository(db)
@@ -83,15 +95,20 @@ async def get_alert_history(
 
 @router.get("/count/{machine_id}", response_model=dict)
 async def get_alert_count(
-    machine_id: int, db: AsyncSession = Depends(get_async_session)
+    machine_id: int,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_permission(Permission.VIEW_ALERTS)),
 ):
     """Get total alert count for a machine.
+
+    Requires: VIEW_ALERTS permission
 
     Args:
         machine_id: Machine identifier
 
     Returns:
         HTTP 200 with count dictionary
+        HTTP 403 if unauthorized
     """
     try:
         repo = AlertRepository(db)
@@ -114,8 +131,11 @@ async def get_alert_range(
     start_time: str = Query(..., description="Start timestamp (ISO format)"),
     end_time: str = Query(..., description="End timestamp (ISO format)"),
     db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_permission(Permission.VIEW_ALERTS)),
 ):
     """Get alerts within a time range for a machine.
+
+    Requires: VIEW_ALERTS permission
 
     Args:
         machine_id: Machine identifier
@@ -124,6 +144,8 @@ async def get_alert_range(
 
     Returns:
         HTTP 200 with list of alerts within time range
+        HTTP 400 if timestamp format is invalid
+        HTTP 403 if unauthorized
     """
     try:
         repo = AlertRepository(db)
@@ -151,15 +173,20 @@ async def get_alert_range(
 
 @router.get("/{alert_id}", response_model=AlertResponse)
 async def get_alert(
-    alert_id: int, db: AsyncSession = Depends(get_async_session)
+    alert_id: int,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_permission(Permission.VIEW_ALERTS)),
 ):
     """Get a specific alert by ID.
+
+    Requires: VIEW_ALERTS permission
 
     Args:
         alert_id: Alert identifier
 
     Returns:
         HTTP 200 with alert record
+        HTTP 403 if unauthorized
         HTTP 404 if alert not found
     """
     try:
@@ -188,15 +215,20 @@ async def get_alert(
 
 @router.put("/{alert_id}/acknowledge", response_model=AlertResponse)
 async def acknowledge_alert(
-    alert_id: int, db: AsyncSession = Depends(get_async_session)
+    alert_id: int,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_permission(Permission.VIEW_ALERTS)),
 ):
     """Acknowledge an alert (mark as read by operator).
+
+    Requires: VIEW_ALERTS permission
 
     Args:
         alert_id: Alert identifier
 
     Returns:
         HTTP 200 with updated alert record
+        HTTP 403 if unauthorized
         HTTP 404 if alert not found
     """
     try:
