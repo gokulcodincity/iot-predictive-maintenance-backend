@@ -1,80 +1,168 @@
 """Prediction API endpoints."""
 
-from fastapi import APIRouter, Depends, status
+import logging
+from datetime import datetime
+from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.session import get_db
-from app.schemas.prediction import PredictionCreate, PredictionResponse
-from app.services.prediction_service import PredictionService
+from app.db.database import get_async_session
+from app.repositories.prediction_repository import PredictionRepository
+from app.schemas.prediction import PredictionResponse
 
-router = APIRouter(prefix="/predictions", tags=["Predictions"])
+logger = logging.getLogger(__name__)
+
+router = APIRouter(prefix="/prediction", tags=["Prediction"])
 
 
-@router.post("", response_model=PredictionResponse, status_code=status.HTTP_201_CREATED)
-async def create_prediction(
-    prediction_data: PredictionCreate, db: AsyncSession = Depends(get_db)
+@router.get("/latest/{machine_id}", response_model=PredictionResponse)
+async def get_latest_prediction(
+    machine_id: int, db: AsyncSession = Depends(get_async_session)
 ):
-    """Create a new prediction from AI inference results.
-
-    Returns:
-        HTTP 201 with created prediction record
-    """
-    service = PredictionService(db)
-    return await service.create_prediction(prediction_data)
-
-
-@router.get("/machine/{machine_id}/latest", response_model=PredictionResponse)
-async def get_latest_prediction(machine_id: int, db: AsyncSession = Depends(get_db)):
-    """Get the latest prediction for a specific machine.
+    """Get the latest prediction for a machine.
 
     Args:
-        machine_id: Asset/machine primary key
+        machine_id: Machine identifier
 
     Returns:
-        HTTP 200 with latest prediction
-        HTTP 404 if no predictions found for machine
+        HTTP 200 with latest prediction record
+        HTTP 404 if no prediction found for machine
     """
-    service = PredictionService(db)
-    return await service.get_latest_prediction(machine_id)
+    try:
+        repo = PredictionRepository(db)
+        prediction = await repo.get_latest_by_machine(machine_id)
+
+        if not prediction:
+            logger.warning(f"No prediction found for machine {machine_id}")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"No prediction found for machine {machine_id}",
+            )
+
+        logger.info(f"Retrieved latest prediction for machine {machine_id}")
+        return prediction
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error retrieving latest prediction: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to retrieve prediction",
+        )
 
 
-@router.get("/machine/{machine_id}", response_model=list[PredictionResponse])
-async def get_machine_predictions(
-    machine_id: int, db: AsyncSession = Depends(get_db)
+@router.get("/history/{machine_id}", response_model=list[PredictionResponse])
+async def get_prediction_history(
+    machine_id: int,
+    limit: int = Query(100, ge=1, le=10000),
+    db: AsyncSession = Depends(get_async_session),
 ):
-    """Get all predictions for a specific machine.
+    """Get prediction history for a machine (newest first).
 
     Args:
-        machine_id: Asset/machine primary key
+        machine_id: Machine identifier
+        limit: Maximum number of records (default 100, max 10000)
 
     Returns:
-        HTTP 200 with list of predictions (newest first)
+        HTTP 200 with list of prediction records
     """
-    service = PredictionService(db)
-    return await service.get_machine_predictions(machine_id)
+    try:
+        repo = PredictionRepository(db)
+        predictions = await repo.get_by_machine(machine_id)
+
+        # Apply limit
+        predictions = predictions[:limit]
+
+        logger.info(f"Retrieved {len(predictions)} predictions for machine {machine_id}")
+        return predictions
+
+    except Exception as e:
+        logger.error(f"Error retrieving prediction history: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to retrieve prediction history",
+        )
 
 
-@router.get("/{prediction_id}", response_model=PredictionResponse)
-async def get_prediction(prediction_id: int, db: AsyncSession = Depends(get_db)):
-    """Get a specific prediction by id.
+@router.get("/count/{machine_id}", response_model=dict)
+async def get_prediction_count(
+    machine_id: int, db: AsyncSession = Depends(get_async_session)
+):
+    """Get total prediction count for a machine.
 
     Args:
-        prediction_id: Prediction primary key
+        machine_id: Machine identifier
 
     Returns:
-        HTTP 200 with prediction
-        HTTP 404 if not found
+        HTTP 200 with count dictionary
     """
-    service = PredictionService(db)
-    return await service.get_prediction_by_id(prediction_id)
+    try:
+        repo = PredictionRepository(db)
+        predictions = await repo.get_by_machine(machine_id)
+        count = len(predictions)
+
+        logger.info(f"Machine {machine_id} has {count} predictions")
+        return {"machine_id": machine_id, "count": count}
+
+    except Exception as e:
+        logger.error(f"Error counting predictions: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to count predictions",
+        )
 
 
-@router.get("", response_model=list[PredictionResponse])
-async def list_predictions(db: AsyncSession = Depends(get_db)):
-    """Get all predictions.
+@router.get("/range/{machine_id}", response_model=list[PredictionResponse])
+async def get_prediction_range(
+    machine_id: int,
+    start_time: str = Query(..., description="Start timestamp (ISO format)"),
+    end_time: str = Query(..., description="End timestamp (ISO format)"),
+    db: AsyncSession = Depends(get_async_session),
+):
+    """Get predictions within a time range for a machine.
+
+    Args:
+        machine_id: Machine identifier
+        start_time: Start timestamp (ISO format, e.g., 2026-07-28T00:00:00)
+        end_time: End timestamp (ISO format, e.g., 2026-07-28T23:59:59)
 
     Returns:
-        HTTP 200 with list of all predictions
+        HTTP 200 with list of predictions within time range
     """
-    service = PredictionService(db)
-    return await service.get_all_predictions()
+    try:
+        # Validate timestamp format
+        try:
+            start_dt = datetime.fromisoformat(start_time)
+            end_dt = datetime.fromisoformat(end_time)
+        except ValueError as e:
+            logger.error(f"Invalid timestamp format: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid timestamp format: {str(e)}",
+            )
+
+        repo = PredictionRepository(db)
+        predictions = await repo.get_by_machine(machine_id)
+
+        # Filter by time range
+        predictions_in_range = [
+            p for p in predictions
+            if start_dt <= p.created_at <= end_dt
+        ]
+
+        logger.info(
+            f"Retrieved {len(predictions_in_range)} predictions for machine {machine_id} "
+            f"from {start_time} to {end_time}"
+        )
+        return predictions_in_range
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error retrieving prediction range: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to retrieve prediction range",
+        )
