@@ -123,21 +123,11 @@ class MQTTConsumer:
             # Step 1: Decode JSON payload
             payload = json.loads(msg.payload.decode("utf-8"))
 
-            # Step 2: Validate payload
+            # Step 2: Validate payload structure and values
             self._validate_payload(payload)
 
-            # Step 3-8: Orchestrate pipeline (use event loop if available)
-            try:
-                loop = asyncio.get_event_loop()
-                if loop.is_running():
-                    # If loop is already running, schedule as task
-                    asyncio.create_task(self._orchestrate_pipeline(payload))
-                else:
-                    # If no loop running, run synchronously
-                    loop.run_until_complete(self._orchestrate_pipeline(payload))
-            except RuntimeError:
-                # No event loop, create new one
-                asyncio.run(self._orchestrate_pipeline(payload))
+            # Step 3: Run async pipeline (save telemetry, features, predictions, alerts)
+            self._run_async_pipeline(payload)
 
         except json.JSONDecodeError as e:
             logger.error(f"JSON decode error: {str(e)}")
@@ -146,15 +136,36 @@ class MQTTConsumer:
         except Exception as e:
             logger.error(f"Unexpected error in message processing: {str(e)}")
 
-    async def _orchestrate_pipeline(self, payload: dict) -> None:
-        """Orchestrate complete telemetry processing pipeline.
+    def _run_async_pipeline(self, payload: dict) -> None:
+        """Execute async telemetry pipeline.
 
-        Pipeline stages:
+        Handles event loop creation and execution of async orchestration.
+
+        Args:
+            payload: Validated telemetry payload
+        """
+        try:
+            # Try to get existing event loop
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                # Loop already running: schedule pipeline as background task
+                asyncio.create_task(self._orchestrate_pipeline(payload))
+            else:
+                # Loop not running: run pipeline to completion
+                loop.run_until_complete(self._orchestrate_pipeline(payload))
+        except RuntimeError:
+            # No event loop exists: create and run new one
+            asyncio.run(self._orchestrate_pipeline(payload))
+
+    async def _orchestrate_pipeline(self, payload: dict) -> None:
+        """Execute complete telemetry processing pipeline.
+
+        Pipeline steps:
         1. Save raw telemetry
         2. Extract features
-        3. Run inference
+        3. Run ML inference
         4. Save predictions
-        5. Execute workflow rules
+        5. Execute workflow rules and alerts
         6. Log success
 
         Args:
@@ -164,84 +175,115 @@ class MQTTConsumer:
             Exception: If any stage fails (logged, pipeline continues)
         """
         try:
-            # Get database manager and create session
+            # Connect to database
             db_manager = await get_database_manager()
-
             async with db_manager.session_context() as db_session:
-                # Step 1: Save raw telemetry to database
-                logger.info(f"Step 1: Saving telemetry for machine {payload['machine_id']}")
-                telemetry_repo = TelemetryRepository(db_session)
-                telemetry_record = await telemetry_repo.save_telemetry(payload)
-                logger.info(
-                    f"Step 1 Complete: Telemetry saved with id {telemetry_record.id}"
+                machine_id = payload["machine_id"]
+
+                # Step 1: Save raw sensor data
+                telemetry_record = await self._step_save_telemetry(db_session, payload, machine_id)
+
+                # Step 2: Extract feature vector from sensor data
+                feature_result = self._step_extract_features(payload)
+
+                # Step 3: Run AI inference (LSTM + XGBoost)
+                inference_result = await self._step_run_inference(feature_result)
+
+                # Step 4: Save prediction results
+                prediction_record = await self._step_save_prediction(
+                    db_session, payload, telemetry_record, inference_result, machine_id
                 )
 
-                # Step 2: Extract feature vector
-                logger.info("Step 2: Extracting feature vector")
-                feature_result = FeatureExtractor.extract_features(payload)
-                logger.info(
-                    f"Step 2 Complete: Feature vector created {feature_result['feature_vector']}"
+                # Step 5: Execute business rules and generate alerts
+                workflow_result = await self._step_execute_workflow(
+                    inference_result, machine_id
                 )
 
-                # Step 3: Run inference service
-                logger.info("Step 3: Running inference service")
-                inference_service = InferenceService()
-                inference_result = await inference_service.predict(
-                    feature_result["feature_vector"],
-                    feature_result["feature_vector"],  # engineered_features
-                )
-                logger.info(
-                    f"Step 3 Complete: Prediction status {inference_result['prediction_status']}"
-                )
-
-                # Step 4: Save prediction to database
-                logger.info("Step 4: Saving prediction")
-                prediction_repo = PredictionRepository(db_session)
-                prediction_data = {
-                    "machine_id": payload["machine_id"],
-                    "telemetry_id": telemetry_record.id,
-                    "anomaly_score": inference_result["anomaly_score"],
-                    "failure_risk": inference_result["failure_risk"],
-                    "confidence": inference_result["confidence"],
-                    "prediction_status": inference_result["prediction_status"],
-                    "model_version": "lstm-xgboost-v1",
-                    "inference_time_ms": 0,
-                }
-                prediction_record = await prediction_repo.create_prediction(
-                    prediction_data
-                )
-                logger.info(
-                    f"Step 4 Complete: Prediction saved with id {prediction_record.id}"
-                )
-
-                # Step 5: Call workflow orchestrator for rules and alerts
-                logger.info("Step 5: Executing workflow orchestrator")
-                orchestrator = WorkflowOrchestrator()
-                workflow_result = await orchestrator.process_prediction(
-                    {
-                        "machine_id": payload["machine_id"],
-                        "prediction_status": inference_result["prediction_status"],
-                        "failure_risk": inference_result["failure_risk"],
-                        "anomaly_score": inference_result["anomaly_score"],
-                        "confidence": inference_result["confidence"],
-                    }
-                )
-                logger.info(f"Step 5 Complete: Workflow executed, alert severity {workflow_result['alert']['severity']}")
-
-                # Step 6: Log pipeline success
-                logger.info(
-                    f"Pipeline Complete: Machine {payload['machine_id']} -> "
-                    f"Telemetry({telemetry_record.id}) -> "
-                    f"Prediction({prediction_record.id}) -> "
-                    f"Alert({workflow_result['alert']['severity']})"
+                # Step 6: Log successful pipeline completion
+                self._log_pipeline_success(
+                    machine_id, telemetry_record, prediction_record, workflow_result
                 )
 
         except ValueError as e:
             logger.error(f"Validation error in pipeline: {str(e)}")
         except Exception as e:
-            logger.error(
-                f"Error in telemetry processing pipeline for machine {payload.get('machine_id')}: {str(e)}"
-            )
+            machine_id = payload.get("machine_id", "unknown")
+            logger.error(f"Error processing telemetry for machine {machine_id}: {str(e)}")
+
+    async def _step_save_telemetry(self, db_session, payload: dict, machine_id: int):
+        """Step 1: Save raw telemetry to database."""
+        logger.info(f"Step 1: Saving telemetry for machine {machine_id}")
+        telemetry_repo = TelemetryRepository(db_session)
+        telemetry_record = await telemetry_repo.save_telemetry(payload)
+        logger.info(f"Step 1 Complete: Telemetry saved (id={telemetry_record.id})")
+        return telemetry_record
+
+    def _step_extract_features(self, payload: dict):
+        """Step 2: Extract feature vector from sensor readings."""
+        logger.info("Step 2: Extracting feature vector")
+        feature_result = FeatureExtractor.extract_features(payload)
+        logger.info(f"Step 2 Complete: Features extracted {feature_result['feature_vector']}")
+        return feature_result
+
+    async def _step_run_inference(self, feature_result: dict):
+        """Step 3: Run ML inference (LSTM autoencoder + XGBoost)."""
+        logger.info("Step 3: Running inference service")
+        inference_service = InferenceService()
+        inference_result = await inference_service.predict(
+            feature_result["feature_vector"],
+            feature_result["feature_vector"],  # engineered_features
+        )
+        logger.info(f"Step 3 Complete: Status={inference_result['prediction_status']}")
+        return inference_result
+
+    async def _step_save_prediction(
+        self, db_session, payload: dict, telemetry_record, inference_result: dict, machine_id: int
+    ):
+        """Step 4: Save prediction results to database."""
+        logger.info("Step 4: Saving prediction")
+        prediction_repo = PredictionRepository(db_session)
+        prediction_data = {
+            "machine_id": machine_id,
+            "telemetry_id": telemetry_record.id,
+            "anomaly_score": inference_result["anomaly_score"],
+            "failure_risk": inference_result["failure_risk"],
+            "confidence": inference_result["confidence"],
+            "prediction_status": inference_result["prediction_status"],
+            "model_version": "lstm-xgboost-v1",
+            "inference_time_ms": 0,
+        }
+        prediction_record = await prediction_repo.create_prediction(prediction_data)
+        logger.info(f"Step 4 Complete: Prediction saved (id={prediction_record.id})")
+        return prediction_record
+
+    async def _step_execute_workflow(self, inference_result: dict, machine_id: int):
+        """Step 5: Execute business rules and generate alerts."""
+        logger.info("Step 5: Executing workflow rules and alerts")
+        orchestrator = WorkflowOrchestrator()
+        workflow_result = await orchestrator.process_prediction(
+            {
+                "machine_id": machine_id,
+                "prediction_status": inference_result["prediction_status"],
+                "failure_risk": inference_result["failure_risk"],
+                "anomaly_score": inference_result["anomaly_score"],
+                "confidence": inference_result["confidence"],
+            }
+        )
+        alert_severity = workflow_result["alert"]["severity"]
+        logger.info(f"Step 5 Complete: Alert severity={alert_severity}")
+        return workflow_result
+
+    def _log_pipeline_success(
+        self, machine_id: int, telemetry_record, prediction_record, workflow_result: dict
+    ):
+        """Step 6: Log complete pipeline execution."""
+        alert_severity = workflow_result["alert"]["severity"]
+        logger.info(
+            f"Pipeline Complete: Machine {machine_id} -> "
+            f"Telemetry(id={telemetry_record.id}) -> "
+            f"Prediction(id={prediction_record.id}) -> "
+            f"Alert(severity={alert_severity})"
+        )
 
     def _on_disconnect(self, client, userdata, disconnect_flags, reason_code, properties):
         """Handle MQTT disconnection.
