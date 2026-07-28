@@ -2,11 +2,11 @@
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import decode_access_token
 from app.core.exceptions import UnauthorizedException
-from app.db.session import get_db
+from app.db.database import get_async_session
 from app.models.user import User
 from app.repositories.user_repository import UserRepository
 from app.schemas.auth_schema import LoginRequest, TokenResponse
@@ -19,7 +19,7 @@ security = HTTPBearer()
 
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_session),
 ) -> User:
     """Validate JWT token and return the current authenticated user."""
     token = credentials.credentials
@@ -38,7 +38,7 @@ async def get_current_user(
         raise UnauthorizedException("Invalid user ID in token")
 
     repo = UserRepository(db)
-    user = repo.get_by_id(user_id)
+    user = await repo.get_by_id(user_id)
 
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -50,17 +50,17 @@ async def get_current_user(
 
 
 @router.post("/register", response_model=UserResponse)
-async def register(user_data: UserCreate, db: Session = Depends(get_db)):
+async def register(user_data: UserCreate, db: AsyncSession = Depends(get_async_session)):
     """Register a new user."""
     auth_service = AuthService(db)
-    return auth_service.register(user_data)
+    return await auth_service.authenticate_user(user_data.username, user_data.password)
 
 
 @router.post("/login", response_model=TokenResponse)
-async def login(login_data: LoginRequest, db: Session = Depends(get_db)):
+async def login(login_data: LoginRequest, db: AsyncSession = Depends(get_async_session)):
     """Authenticate user and return access token."""
     auth_service = AuthService(db)
-    return auth_service.login(login_data)
+    return await auth_service.authenticate_user(login_data.username, login_data.password)
 
 
 @router.get("/me", response_model=UserResponse)
