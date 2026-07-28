@@ -1,8 +1,6 @@
 """Prediction API endpoints."""
 
 import logging
-from datetime import datetime
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -31,7 +29,7 @@ async def get_latest_prediction(
     """
     try:
         repo = PredictionRepository(db)
-        prediction = await repo.get_latest_by_machine(machine_id)
+        prediction = await repo.get_latest(machine_id)
 
         if not prediction:
             logger.warning(f"No prediction found for machine {machine_id}")
@@ -70,10 +68,7 @@ async def get_prediction_history(
     """
     try:
         repo = PredictionRepository(db)
-        predictions = await repo.get_by_machine(machine_id)
-
-        # Apply limit
-        predictions = predictions[:limit]
+        predictions = await repo.get_by_machine(machine_id, limit=limit)
 
         logger.info(f"Retrieved {len(predictions)} predictions for machine {machine_id}")
         return predictions
@@ -100,8 +95,7 @@ async def get_prediction_count(
     """
     try:
         repo = PredictionRepository(db)
-        predictions = await repo.get_by_machine(machine_id)
-        count = len(predictions)
+        count = await repo.count(machine_id)
 
         logger.info(f"Machine {machine_id} has {count} predictions")
         return {"machine_id": machine_id, "count": count}
@@ -132,34 +126,21 @@ async def get_prediction_range(
         HTTP 200 with list of predictions within time range
     """
     try:
-        # Validate timestamp format
-        try:
-            start_dt = datetime.fromisoformat(start_time)
-            end_dt = datetime.fromisoformat(end_time)
-        except ValueError as e:
-            logger.error(f"Invalid timestamp format: {str(e)}")
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid timestamp format: {str(e)}",
-            )
-
         repo = PredictionRepository(db)
-        predictions = await repo.get_by_machine(machine_id)
-
-        # Filter by time range
-        predictions_in_range = [
-            p for p in predictions
-            if start_dt <= p.created_at <= end_dt
-        ]
+        predictions = await repo.get_by_timerange(machine_id, start_time, end_time)
 
         logger.info(
-            f"Retrieved {len(predictions_in_range)} predictions for machine {machine_id} "
+            f"Retrieved {len(predictions)} predictions for machine {machine_id} "
             f"from {start_time} to {end_time}"
         )
-        return predictions_in_range
+        return predictions
 
-    except HTTPException:
-        raise
+    except ValueError as e:
+        logger.error(f"Invalid timestamp format: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid timestamp format: {str(e)}",
+        )
     except Exception as e:
         logger.error(f"Error retrieving prediction range: {str(e)}")
         raise HTTPException(
