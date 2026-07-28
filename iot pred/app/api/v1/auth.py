@@ -11,7 +11,7 @@ from app.models.user import User
 from app.repositories.user_repository import UserRepository
 from app.schemas.auth_schema import LoginRequest, TokenResponse
 from app.schemas.user_schema import UserCreate, UserResponse
-from app.services.auth_service import AuthService
+from app.services.auth_service import AuthenticationService
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 security = HTTPBearer()
@@ -52,14 +52,14 @@ async def get_current_user(
 @router.post("/register", response_model=UserResponse)
 async def register(user_data: UserCreate, db: AsyncSession = Depends(get_async_session)):
     """Register a new user."""
-    auth_service = AuthService(db)
-    return await auth_service.authenticate_user(user_data.username, user_data.password)
+    auth_service = AuthenticationService(db)
+    return await auth_service.authenticate_user(user_data.email, user_data.password)
 
 
 @router.post("/login", response_model=TokenResponse)
 async def login(login_data: LoginRequest, db: AsyncSession = Depends(get_async_session)):
     """Authenticate user and return access token."""
-    auth_service = AuthService(db)
+    auth_service = AuthenticationService(db)
     result = await auth_service.authenticate_user(login_data.email, login_data.password)
     if not result:
         raise HTTPException(status_code=401, detail="Invalid email or password")
