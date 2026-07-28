@@ -16,8 +16,8 @@ class ApprovalWorkflow(BaseModel):
     maintenance_id: Mapped[int] = mapped_column(
         ForeignKey("maintenance_records.id"), nullable=False, index=True, unique=True
     )
-    reviewed_by: Mapped[int] = mapped_column(
-        ForeignKey("users.id"), nullable=False, index=True
+    reviewed_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id"), nullable=True, index=True
     )
     status: Mapped[ApprovalStatus] = mapped_column(
         Enum(ApprovalStatus), default=ApprovalStatus.PENDING, nullable=False
