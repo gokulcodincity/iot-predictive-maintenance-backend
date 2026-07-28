@@ -44,8 +44,9 @@ class LLMService:
             # Step 2: Call OpenAI Responses API
             response = await self.client.responses.create(
                 model=self.model,
-                max_tokens=2048,
-                instructions=prompt,
+                instructions="You are an expert Industrial IoT Predictive Maintenance AI assistant. Analyze the prediction data and provide concise, actionable maintenance recommendations.",
+                input=prompt,
+                max_output_tokens=2048,
             )
 
             # Step 3: Extract response and usage information
