@@ -60,7 +60,10 @@ async def register(user_data: UserCreate, db: AsyncSession = Depends(get_async_s
 async def login(login_data: LoginRequest, db: AsyncSession = Depends(get_async_session)):
     """Authenticate user and return access token."""
     auth_service = AuthService(db)
-    return await auth_service.authenticate_user(login_data.username, login_data.password)
+    result = await auth_service.authenticate_user(login_data.email, login_data.password)
+    if not result:
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+    return result
 
 
 @router.get("/me", response_model=UserResponse)
