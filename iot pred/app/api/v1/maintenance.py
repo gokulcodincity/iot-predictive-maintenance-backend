@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.authorization import Permission
 from app.db.database import get_async_session
-from app.dependencies.authorization import require_any_permission, require_permission
+from app.dependencies.authorization import require_permission
 from app.models.user import User
 from app.schemas.maintenance import MaintenanceCreate, MaintenanceResponse, MaintenanceUpdate
 from app.services.maintenance_service import MaintenanceService
@@ -20,16 +20,11 @@ router = APIRouter(prefix="/maintenance", tags=["Maintenance"])
 @router.get("", response_model=list[MaintenanceResponse])
 async def list_maintenance(
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(
-        require_any_permission(Permission.CREATE_MAINTENANCE, Permission.REVIEW_MAINTENANCE)
-    ),
+    current_user: User = Depends(require_permission(Permission.CREATE_MAINTENANCE)),
 ):
     """Get all maintenance records.
 
-    Requires: CREATE_MAINTENANCE or REVIEW_MAINTENANCE permission
-    - Maintenance Engineer: View their maintenance work
-    - Plant Manager: Review maintenance for approval
-    - Admin: Full access
+    Requires: CREATE_MAINTENANCE permission (Maintenance Engineer, Admin)
 
     Returns:
         HTTP 200 with list of maintenance records
@@ -52,16 +47,11 @@ async def list_maintenance(
 async def get_maintenance(
     maintenance_id: int,
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(
-        require_any_permission(Permission.CREATE_MAINTENANCE, Permission.REVIEW_MAINTENANCE)
-    ),
+    current_user: User = Depends(require_permission(Permission.CREATE_MAINTENANCE)),
 ):
     """Get maintenance record by ID.
 
-    Requires: CREATE_MAINTENANCE or REVIEW_MAINTENANCE permission
-    - Maintenance Engineer: View their maintenance work
-    - Plant Manager: Review maintenance for approval
-    - Admin: Full access
+    Requires: CREATE_MAINTENANCE permission (Maintenance Engineer, Admin)
 
     Args:
         maintenance_id: Maintenance primary key
@@ -98,16 +88,11 @@ async def get_maintenance(
 async def get_asset_maintenance(
     asset_id: int,
     db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(
-        require_any_permission(Permission.CREATE_MAINTENANCE, Permission.REVIEW_MAINTENANCE)
-    ),
+    current_user: User = Depends(require_permission(Permission.CREATE_MAINTENANCE)),
 ):
     """Get maintenance history for a specific asset.
 
-    Requires: CREATE_MAINTENANCE or REVIEW_MAINTENANCE permission
-    - Maintenance Engineer: View their maintenance work
-    - Plant Manager: Review maintenance for approval
-    - Admin: Full access
+    Requires: CREATE_MAINTENANCE permission (Maintenance Engineer, Admin)
 
     Args:
         asset_id: Asset primary key

@@ -41,8 +41,6 @@ class Permission(str, Enum):
     # Maintenance
     CREATE_MAINTENANCE = "create_maintenance"
     UPDATE_MAINTENANCE = "update_maintenance"
-    REVIEW_MAINTENANCE = "review_maintenance"
-    APPROVE_MAINTENANCE = "approve_maintenance"
 
     # Trends and Validation
     VIEW_TRENDS = "view_trends"
@@ -81,9 +79,6 @@ ROLE_PERMISSIONS: dict[Role, Set[Permission]] = {
         # Dashboard and Reports
         Permission.VIEW_DASHBOARD,
         Permission.VIEW_REPORTS,
-        # Maintenance
-        Permission.REVIEW_MAINTENANCE,
-        Permission.APPROVE_MAINTENANCE,
         # Assets
         Permission.VIEW_ASSETS,
     },
