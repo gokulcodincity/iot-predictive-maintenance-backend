@@ -32,3 +32,12 @@ class PredictionStatus(str, Enum):
     NORMAL = "normal"
     WARNING = "warning"
     CRITICAL = "critical"
+
+
+class MaintenanceStatus(str, Enum):
+    """Maintenance record status values."""
+    PENDING = "pending"
+    SCHEDULED = "scheduled"
+    IN_PROGRESS = "in_progress"
+    COMPLETED = "completed"
+    CANCELLED = "cancelled"
